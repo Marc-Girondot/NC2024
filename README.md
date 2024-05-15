@@ -18,10 +18,7 @@ Three parts in the analysis are described here.
 
 The monitoring of the detection of body pits allow to estimate the duration of detection of a body pit.
 
-## Phenology estimation based on body pit counts
+## Phenology estimation based on body pit counts and Global estimation
 
-This is the intra-seasonal estimation of missing information.
+This is the intra-seasonal and inter-seasonal estimation of missing information.
 
-## Global estimation
-
-This is the interseasonal estimation of missing information.
