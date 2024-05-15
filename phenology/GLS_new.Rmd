@@ -1,0 +1,1335 @@
+---
+title: "Analyse des données de pontes de *Caretta caretta* au Grand Lagon Sud, Nouvelle Calédonie"
+author: "Marc Girondot"
+date: "`r format(Sys.time(), '%d %B %Y')`"
+output:
+  word_document: 
+    fig_width: 8
+    fig_height: 6
+    reference_docx: template.docx
+  html_document:
+    df_print: paged
+  pdf_document: default
+editor_options:
+  chunk_output_type: console
+---
+
+# Load libraries
+
+```{r eval=FALSE}
+install.packages("https://hebergement.universite-paris-saclay.fr/marcgirondot/CRAN/HelpersMG.tar.gz", repos=NULL, type="source")
+install.packages("https://hebergement.universite-paris-saclay.fr/marcgirondot/CRAN/phenology.tar.gz", repos=NULL, type="source")
+
+```
+
+
+```{r loadlibrary}
+library(phenology)
+library(lubridate)
+```
+
+# Load data
+
+```{r loaddata,  eval=FALSE}
+data_df <- read.csv(file.path("dataIn", "df_phenology-R_v20230619.csv"), sep=";", dec=".", 
+                    nrows=557, na.strings="NA")
+annees = c(2017:2022)
+
+ilots <- unique(data_df$site)
+ilots <- c("atire", "gi", "ieroue", "kouare", "nda", 
+           "nge", "redika", "tere", "ua", "uaterembi", "vua", 
+           "uatio", "amere", "du ami", "kie", "koko", "mato", "ndo", "noe", 
+           "petit koko", "totea", "uie", "uo", "puemba", "nouare", "pumbo", 
+           "ugo", "mbore")
+
+
+date_ec <- as.Date(unlist(lapply(strsplit(data_df$date, split="-"), FUN=function(x) x[[1]])), 
+                   format="%d/%m/%Y")
+year_ec <- year(date_ec)
+month_ec <- month(date_ec)
+year_ec <- ifelse(month_ec<10, year_ec-1, year_ec)
+data_df <- cbind(data_df, Year=year_ec)
+```
+
+#Genarate formated data
+
+Toutes les séries sont gardées.
+
+```{r formatdata,  eval=FALSE}
+data <- NULL
+
+for (ilot in ilots) {
+  for (annee_ec in annees) {
+    data_ec <- subset(data_df, subset = (data_df$site==ilot) & (data_df$Year==annee_ec), 
+                      select = c("date", "pontes", "pontes_correction", "site"))
+    if (nrow(data_ec) > 0) {
+      data_ec <- cbind(data_ec, CountTypes="exact")
+      data_ec <- data_ec[, c("date", "pontes", "site", "CountTypes")]
+      data_ec$site <- paste0(data_ec$site, "-", as.character(annee_ec))
+      data <- add_phenology(add=data_ec, previous = data, 
+                            colname.Rookery = "site",
+                            colname.CountTypes = "CountTypes",
+                            A.default = 22.23272, 
+                            S.default = 3.044462, 
+                            reference = as.Date(paste0(as.character(annee_ec), "-10-01")), 
+                            expandRange0Observation = FALSE,
+                            include0 = TRUE, 
+                            check.overlapping.dates = TRUE, silent = TRUE)
+    }
+    
+  }
+}
+
+save(data, file=file.path("dataIn", "data.Rdata"))
+```
+
+
+# Ajustement de la saison de pontes - Distribution de Poisson
+
+## Peak common and LBLE common - Distribution de Poisson
+
+```{r ModelPeakCommon_LBLECommon_Poisson, eval=FALSE}
+load(file=file.path("dataIn", "data.Rdata"))
+
+#parametres fixes : minB=MinE=Flat=0
+fixed.par <- c(Min=0, Flat=0, Theta=1E9)
+
+parg <- par_init(data, fixed.parameters=fixed.par)
+fixed.par <- c(fixed.par, parg[parg==0])
+
+parg <- par_init(data, fixed.parameters=fixed.par)
+
+# These values are the fitted ones
+parg <- c('Max_atire-2017' = 0.81721906236430042, 
+          'Max_atire-2018' = 0.75295930958028534, 
+          'Max_atire-2019' = 0.49581556079515188, 
+          'Max_atire-2020' = 0.81305576237902688, 
+          'Max_atire-2021' = 0.59991080000367203, 
+          'Max_atire-2022' = 0.49741533919244846, 
+          'Max_gi-2017' = 0.61671402239826778, 
+          'Max_gi-2018' = 0.72589271886876627, 
+          'Max_gi-2019' = 0.36413828745003057, 
+          'Max_gi-2020' = 0.30996988120322888, 
+          'Max_gi-2021' = 0.88238967112788047, 
+          'Max_gi-2022' = 0.28793785587657278, 
+          'Max_ieroue-2017' = 0.15331031586952298, 
+          'Max_ieroue-2018' = 0.057498161777115073, 
+          'Max_ieroue-2019' = 0.082089094138888541, 
+          'Max_ieroue-2020' = 0.099577149443109525, 
+          'Max_ieroue-2021' = 0.095279269832991606, 
+          'Max_ieroue-2022' = 0.26178975114201236, 
+          'Max_kouare-2017' = 0.17742379206023137, 
+          'Max_kouare-2018' = 0.35982379978628493, 
+          'Max_kouare-2019' = 0.097266973287096631, 
+          'Max_kouare-2020' = 0.47663773733776327, 
+          'Max_kouare-2021' = 0.15482425206710257, 
+          'Max_kouare-2022' = 0.24175972779891544, 
+          'Max_nda-2017' = 0.4835206983282529, 
+          'Max_nda-2018' = 0.11599279012567114, 
+          'Max_nda-2019' = 0.1961719738858235, 
+          'Max_nda-2020' = 0.19909877910044385, 
+          'Max_nda-2021' = 0.21277400897814813, 
+          'Max_nda-2022' = 0.52365990518869898, 
+          'Max_nge-2017' = 0.26782600510992227, 
+          'Max_nge-2018' = 0.78311868443633315, 
+          'Max_nge-2019' = 0.40790774342962788, 
+          'Max_nge-2020' = 0.33904434087218704, 
+          'Max_nge-2021' = 0.93399813234685392, 
+          'Max_nge-2022' = 0.33196187605805183, 
+          'Max_redika-2017' = 0.64022779750335623, 
+          'Max_redika-2018' = 0.25863992749262887, 
+          'Max_redika-2019' = 0.34109970873461465, 
+          'Max_redika-2020' = 0.019837598908834742, 
+          'Max_redika-2021' = 0.22841429223987567, 
+          'Max_redika-2022' = 0.11939840805320022, 
+          'Max_tere-2017' = 0.053837776655372545, 
+          'Max_tere-2022' = 0.03968510576241778, 
+          'Max_ua-2017' = 0.19644848150124339, 
+          'Max_ua-2018' = 0.27450706594831009, 
+          'Max_ua-2019' = 0.43812707148387509, 
+          'Max_ua-2020' = 0.21046578272287919, 
+          'Max_ua-2021' = 0.2286707956586761, 
+          'Max_ua-2022' = 0.28665451641186818, 
+          'Max_uaterembi-2017' = 0.48599748368703294, 
+          'Max_uaterembi-2018' = 0.23289098434298283, 
+          'Max_uaterembi-2019' = 0.13350986843473181, 
+          'Max_uaterembi-2020' = 0.23982528373717329, 
+          'Max_uaterembi-2021' = 0.41810930345920722, 
+          'Max_uaterembi-2022' = 0.2605505486207999, 
+          'Max_vua-2017' = 0.21300441681188659, 
+          'Max_vua-2018' = 0.28010967996978148, 
+          'Max_vua-2019' = 0.12329149815159937, 
+          'Max_vua-2020' = 0.26939539425549575, 
+          'Max_vua-2021' = 0.25965513451523575, 
+          'Max_vua-2022' = 0.24260967996978131, 
+          'Max_uatio-2018' = 0.3450165809003039, 
+          'Max_uatio-2019' = 0.2883717256034683, 
+          'Max_uatio-2020' = 0.060031428204613844, 
+          'Max_uatio-2021' = 0.15194766792878894, 
+          'Max_uatio-2022' = 0.3478451895311962, 
+          'Max_amere-2018' = 0.76852280508680226, 
+          'Max_amere-2022' = 0.34872983659992096, 
+          'Max_du.ami-2018' = 0.076980211661308084, 
+          'Max_kie-2018' = 1.4638744730949869, 
+          'Max_kie-2022' = 0.69702052474760989, 
+          'Max_koko-2018' = 0.39057955318824616, 
+          'Max_mato-2018' = 0.079609998881732771, 
+          'Max_mato-2019' = 0.15373365180368301, 
+          'Max_mato-2020' = 0.039233201782236105, 
+          'Max_mato-2021' = 0.13143046425663757, 
+          'Max_ndo-2018' = 0.078021570182832942, 
+          'Max_ndo-2019' = 0.83215428913386991, 
+          'Max_ndo-2020' = 0.11528541309407274, 
+          'Max_ndo-2021' = 0.12995235562315202, 
+          'Max_ndo-2022' = 0.58353585209528214, 
+          'Max_noe-2019' = 0.095961941063731987, 
+          'Max_noe-2021' = 0.087708589352684996, 
+          'Max_petit.koko-2018' = 0.1232914981515995, 
+          'Max_petit.koko-2021' = 0.043382655543105053, 
+          'Max_petit.koko-2022' = 0.089617205439644673, 
+          'Max_totea-2018' = 0.23411650887793167, 
+          'Max_totea-2020' = 0.11550282527018843, 
+          'Max_totea-2021' = 0.21634316470481035, 
+          'Max_totea-2022' = 0.49348042705876755, 
+          'Max_uie-2018' = 0.078167195223170199, 
+          'Max_uie-2019' = 0.25550285605858025, 
+          'Max_uie-2020' = 0.11521494114565216, 
+          'Max_uie-2021' = 0.26754440527445833, 
+          'Max_uo-2018' = 0.15920650658947419, 
+          'Max_uo-2019' = 0.063657664856034912, 
+          'Max_uo-2021' = 0.1731552294181613, 
+          'Max_puemba-2019' = 0.19162618468624643, 
+          'Max_puemba-2020' = 0.1146926033955699, 
+          'Max_puemba-2021' = 0.13150062935845871, 
+          'Max_puemba-2022' = 0.310299884404802, 
+          'Max_nouare-2021' = 0.043700058214263128, 
+          'Max_pumbo-2020' = 0.03830318979192264, 
+          'Max_pumbo-2021' = 0.043779401639164786, 
+          'Max_mbore-2020' = 0.076830921173765818, 
+          'Max_mbore-2021' = 0.043121623724108993, 
+          'Max_mbore-2022' = 0.13464151746671246, 
+          'LengthB' = 57.860560197704153, 
+          'Peak' = 82.288258501029674, 
+          'LengthE' = 84.178011401358759)
+
+out_Poisson <- fit_phenology(data=data, 
+                             fitted.parameters = parg, 
+                             fixed.parameters = fixed.par, 
+                             method = c("Nelder-Mead", "BFGS"), 
+                             method_Snbinom = "saddlepoint", 
+                             control = list(trace = 1, REPORT = 1, maxit = 1000), 
+                             stop.fit = FALSE)
+save(out_Poisson, file=file.path("dataOut", "out_Poisson.Rdata"))
+
+parg <- c(out_Poisson$par, out_Poisson$fixed.parameters[grepl("^Max_", names(out_Poisson$fixed.parameters))])
+fixed.par <- c(Min=0, Flat=0, Theta=1E9)
+out_All_Poisson <- fit_phenology(data=data, 
+                                 fitted.parameters = parg, 
+                                 fixed.parameters = fixed.par, 
+                                 method = "Nelder-Mead", 
+                                 method_Snbinom = "saddlepoint", 
+                                 control = list(trace = 1, REPORT = 1, maxit = 0), 
+                                 stop.fit = TRUE)
+save(out_All_Poisson, file=file.path("dataOut", "out_All_Poisson.Rdata"))
+```
+
+### Test série kouare-2017 - Distribution de Poisson
+
+```{r eval=FALSE}
+load(file=file.path("dataOut", "out_Poisson.Rdata"))
+out_Poisson$data[["kouare-2017"]]
+plot(out_Poisson, series = "kouare-2017")
+out_Poisson$par["Max_kouare-2017"]
+
+getFromNamespace(".Lnegbin", ns="phenology")(x=out_Poisson$par, 
+                                             pt=list(fixed=out_Poisson$fixed.parameters, 
+                                                     out=FALSE, 
+                                                     data=out_Poisson$data,
+                                                     method_Snbinom=out_Poisson$method_Snbinom))[["kouare-2017"]]
+```
+
+## Peak Year and LBLE common - Distribution de Poisson
+
+```{r PeakYear_LBLECommon_Poisson, eval=FALSE}
+load(file=file.path("dataIn", "data.Rdata"))
+#parametres fixes : minB=MinE=Flat=0
+fixed.par <- c(Min=0, Flat=0, Theta=1E9)
+
+parg <- par_init(data, fixed.parameters=fixed.par)
+fixed.par <- c(fixed.par, parg[parg==0])
+
+# These values are the fitted ones
+parg <- c('Peak_2017' = 90.535125599719436, 
+          'Peak_2018' = 92.175798258241457, 
+          'Peak_2019' = 88.821790681307988, 
+          'Peak_2020' = 87.045647757810698, 
+          'Peak_2021' = 84.320782683360022, 
+          'Peak_2022' = 74.789801139393262, 
+          'LengthB' = 57.860560197704153, 
+          'LengthE' = 84.178011401358759, 
+          'Max_atire-2017' = 0.81721906236430042, 
+          'Max_atire-2018' = 0.75295930958028534, 
+          'Max_atire-2019' = 0.49581556079515188, 
+          'Max_atire-2020' = 0.81305576237902688, 
+          'Max_atire-2021' = 0.59991080000367203, 
+          'Max_atire-2022' = 0.49741533919244846, 
+          'Max_gi-2017' = 0.61671402239826778, 
+          'Max_gi-2018' = 0.72589271886876627, 
+          'Max_gi-2019' = 0.36413828745003057, 
+          'Max_gi-2020' = 0.30996988120322888, 
+          'Max_gi-2021' = 0.88238967112788047, 
+          'Max_gi-2022' = 0.28793785587657278, 
+          'Max_ieroue-2017' = 0.15331031586952298, 
+          'Max_ieroue-2018' = 0.057498161777115073, 
+          'Max_ieroue-2019' = 0.082089094138888541, 
+          'Max_ieroue-2020' = 0.099577149443109525, 
+          'Max_ieroue-2021' = 0.095279269832991606, 
+          'Max_ieroue-2022' = 0.26178975114201236, 
+          'Max_kouare-2017' = 0.17742379206023137, 
+          'Max_kouare-2018' = 0.35982379978628493, 
+          'Max_kouare-2019' = 0.097266973287096631, 
+          'Max_kouare-2020' = 0.47663773733776327, 
+          'Max_kouare-2021' = 0.15482425206710257, 
+          'Max_kouare-2022' = 0.24175972779891544, 
+          'Max_nda-2017' = 0.4835206983282529, 
+          'Max_nda-2018' = 0.11599279012567114, 
+          'Max_nda-2019' = 0.1961719738858235, 
+          'Max_nda-2020' = 0.19909877910044385, 
+          'Max_nda-2021' = 0.21277400897814813, 
+          'Max_nda-2022' = 0.52365990518869898, 
+          'Max_nge-2017' = 0.26782600510992227, 
+          'Max_nge-2018' = 0.78311868443633315, 
+          'Max_nge-2019' = 0.40790774342962788, 
+          'Max_nge-2020' = 0.33904434087218704, 
+          'Max_nge-2021' = 0.93399813234685392, 
+          'Max_nge-2022' = 0.33196187605805183, 
+          'Max_redika-2017' = 0.64022779750335623, 
+          'Max_redika-2018' = 0.25863992749262887, 
+          'Max_redika-2019' = 0.34109970873461465, 
+          'Max_redika-2020' = 0.019837598908834742, 
+          'Max_redika-2021' = 0.22841429223987567, 
+          'Max_redika-2022' = 0.11939840805320022, 
+          'Max_tere-2017' = 0.053837776655372545, 
+          'Max_tere-2022' = 0.03968510576241778, 
+          'Max_ua-2017' = 0.19644848150124339, 
+          'Max_ua-2018' = 0.27450706594831009, 
+          'Max_ua-2019' = 0.43812707148387509, 
+          'Max_ua-2020' = 0.21046578272287919, 
+          'Max_ua-2021' = 0.2286707956586761, 
+          'Max_ua-2022' = 0.28665451641186818, 
+          'Max_uaterembi-2017' = 0.48599748368703294, 
+          'Max_uaterembi-2018' = 0.23289098434298283, 
+          'Max_uaterembi-2019' = 0.13350986843473181, 
+          'Max_uaterembi-2020' = 0.23982528373717329, 
+          'Max_uaterembi-2021' = 0.41810930345920722, 
+          'Max_uaterembi-2022' = 0.2605505486207999, 
+          'Max_vua-2017' = 0.21300441681188659, 
+          'Max_vua-2018' = 0.28010967996978148, 
+          'Max_vua-2019' = 0.12329149815159937, 
+          'Max_vua-2020' = 0.26939539425549575, 
+          'Max_vua-2021' = 0.25965513451523575, 
+          'Max_vua-2022' = 0.24260967996978131, 
+          'Max_uatio-2018' = 0.3450165809003039, 
+          'Max_uatio-2019' = 0.2883717256034683, 
+          'Max_uatio-2020' = 0.060031428204613844, 
+          'Max_uatio-2021' = 0.15194766792878894, 
+          'Max_uatio-2022' = 0.3478451895311962, 
+          'Max_amere-2018' = 0.76852280508680226, 
+          'Max_amere-2022' = 0.34872983659992096, 
+          'Max_du.ami-2018' = 0.076980211661308084, 
+          'Max_kie-2018' = 1.4638744730949869, 
+          'Max_kie-2022' = 0.69702052474760989, 
+          'Max_koko-2018' = 0.39057955318824616, 
+          'Max_mato-2018' = 0.079609998881732771, 
+          'Max_mato-2019' = 0.15373365180368301, 
+          'Max_mato-2020' = 0.039233201782236105, 
+          'Max_mato-2021' = 0.13143046425663757, 
+          'Max_ndo-2018' = 0.078021570182832942, 
+          'Max_ndo-2019' = 0.83215428913386991, 
+          'Max_ndo-2020' = 0.11528541309407274, 
+          'Max_ndo-2021' = 0.12995235562315202, 
+          'Max_ndo-2022' = 0.58353585209528214, 
+          'Max_noe-2019' = 0.095961941063731987, 
+          'Max_noe-2021' = 0.087708589352684996, 
+          'Max_petit.koko-2018' = 0.1232914981515995, 
+          'Max_petit.koko-2021' = 0.043382655543105053, 
+          'Max_petit.koko-2022' = 0.089617205439644673, 
+          'Max_totea-2018' = 0.23411650887793167, 
+          'Max_totea-2020' = 0.11550282527018843, 
+          'Max_totea-2021' = 0.21634316470481035, 
+          'Max_totea-2022' = 0.49348042705876755, 
+          'Max_uie-2018' = 0.078167195223170199, 
+          'Max_uie-2019' = 0.25550285605858025, 
+          'Max_uie-2020' = 0.11521494114565216, 
+          'Max_uie-2021' = 0.26754440527445833, 
+          'Max_uo-2018' = 0.15920650658947419, 
+          'Max_uo-2019' = 0.063657664856034912, 
+          'Max_uo-2021' = 0.1731552294181613, 
+          'Max_puemba-2019' = 0.19162618468624643, 
+          'Max_puemba-2020' = 0.1146926033955699, 
+          'Max_puemba-2021' = 0.13150062935845871, 
+          'Max_puemba-2022' = 0.310299884404802, 
+          'Max_nouare-2021' = 0.043700058214263128, 
+          'Max_pumbo-2020' = 0.03830318979192264, 
+          'Max_pumbo-2021' = 0.043779401639164786, 
+          'Max_mbore-2020' = 0.076830921173765818, 
+          'Max_mbore-2021' = 0.043121623724108993, 
+          'Max_mbore-2022' = 0.13464151746671246)
+
+out_Peak_Poisson <- fit_phenology(data=data, 
+                                  fitted.parameters = parg, 
+                                  fixed.parameters = fixed.par, 
+                                  method = c("Nelder-Mead", "BFGS"), 
+                                  method_Snbinom = "saddlepoint", 
+                                  control = list(trace = 1, REPORT = 1, maxit = 2000), 
+                                  stop.fit = TRUE)
+save(out_Peak_Poisson, file=file.path("dataOut", "out_Peak_Poisson.Rdata"))
+
+parg <- c(out_Peak_Poisson$par, out_Peak_Poisson$fixed.parameters[grepl("^Max_", names(out_Peak_Poisson$fixed.parameters))])
+fixed.par <- c(Min=0, Flat=0, Theta=1E9)
+out_Peak_All_Poisson <- fit_phenology(data=data, 
+                                      fitted.parameters = parg, 
+                                      fixed.parameters = fixed.par, 
+                                      method = "Nelder-Mead", 
+                                      method_Snbinom = "saddlepoint", 
+                                      control = list(trace = 1, REPORT = 1, maxit = 0), 
+                                      stop.fit = TRUE)
+save(out_Peak_All_Poisson, file=file.path("dataOut", "out_Peak_All_Poisson.Rdata"))
+```
+
+## Peak common, LBLE Year - Distribution de Poisson
+
+```{r PeakCommon_LBLEYear_Poisson, eval=FALSE}
+#parametres fixes : minB=MinE=Flat=0
+fixed.par <- c(Min=0, Flat=0, Theta=1E9)
+
+parg <- par_init(data, fixed.parameters=fixed.par)
+fixed.par <- c(fixed.par, parg[parg == 0])
+
+# These values are the fitted ones
+parg <- c('Peak' = 87.250427237997471, 
+          'LengthB_2017' = 67.733731806733388, 
+          'LengthE_2017' = 86.426484014649262, 
+          'LengthB_2018' = 59.668240013853264, 
+          'LengthE_2018' = 1057.1776161267346, 
+          'LengthB_2019' = 63.476069724240439, 
+          'LengthE_2019' = 1899.5319904321004, 
+          'LengthB_2020' = 59.943445395647942, 
+          'LengthE_2020' = 58.329848067773092, 
+          'LengthB_2021' = 67.886413517594519, 
+          'LengthE_2021' = 74.253128059712623, 
+          'LengthB_2022' = 81.664987230201589, 
+          'LengthE_2022' = 49.106588334060334, 
+          'Max_atire-2017' = 0.73997306545416475, 
+          'Max_atire-2018' = 0.81196405621354284, 
+          'Max_atire-2019' = 0.45915700028888351, 
+          'Max_atire-2020' = 0.88883688721066723, 
+          'Max_atire-2021' = 0.56886669265714263, 
+          'Max_atire-2022' = 0.47304770166332916, 
+          'Max_gi-2017' = 0.57324788695433671, 
+          'Max_gi-2018' = 0.76705416389904924, 
+          'Max_gi-2019' = 0.35695516370538183, 
+          'Max_gi-2020' = 0.34437730135405087, 
+          'Max_gi-2021' = 0.86132519112648154, 
+          'Max_gi-2022' = 0.29277247023950947, 
+          'Max_ieroue-2017' = 0.13965805823371258, 
+          'Max_ieroue-2018' = 0.059104622512598085, 
+          'Max_ieroue-2019' = 0.071156577055327769, 
+          'Max_ieroue-2020' = 0.11098394150450014, 
+          'Max_ieroue-2021' = 0.094363324379772143, 
+          'Max_ieroue-2022' = 0.26317059639925738, 
+          'Max_kouare-2017' = 0.17503542271837969, 
+          'Max_kouare-2018' = 0.38839263962922904, 
+          'Max_kouare-2019' = 0.090645011101669476, 
+          'Max_kouare-2020' = 0.53137297908075454, 
+          'Max_kouare-2021' = 0.15266235808623854, 
+          'Max_kouare-2022' = 0.24637511804202208, 
+          'Max_nda-2017' = 0.44986260336995876, 
+          'Max_nda-2018' = 0.12024910699267957, 
+          'Max_nda-2019' = 0.2166438417749007, 
+          'Max_nda-2020' = 0.21948109044602934, 
+          'Max_nda-2021' = 0.20717444375734395, 
+          'Max_nda-2022' = 0.53517164813442897, 
+          'Max_nge-2017' = 0.24382805077047293, 
+          'Max_nge-2018' = 0.83423558732611003, 
+          'Max_nge-2019' = 0.36756480701925892, 
+          'Max_nge-2020' = 0.3679089589113767, 
+          'Max_nge-2021' = 0.91714002096989222, 
+          'Max_nge-2022' = 0.34555009108991264, 
+          'Max_redika-2017' = 0.59402835956257705, 
+          'Max_redika-2018' = 0.27849844916299382, 
+          'Max_redika-2019' = 0.30789606144400111, 
+          'Max_redika-2020' = -0.021797419597343375, 
+          'Max_redika-2021' = 0.21806892321669463, 
+          'Max_redika-2022' = 0.10331811245404358, 
+          'Max_tere-2017' = 0.050501198992030226, 
+          'Max_tere-2022' = 0.04230590068045726, 
+          'Max_ua-2017' = 0.19432398721898889, 
+          'Max_ua-2018' = 0.29283730076465353, 
+          'Max_ua-2019' = 0.38004451976004361, 
+          'Max_ua-2020' = 0.24447472633502415, 
+          'Max_ua-2021' = 0.23897753640424146, 
+          'Max_ua-2022' = 0.31844617106344159, 
+          'Max_uaterembi-2017' = 0.4475004965431415, 
+          'Max_uaterembi-2018' = 0.25167679633918194, 
+          'Max_uaterembi-2019' = 0.11751706267317918, 
+          'Max_uaterembi-2020' = 0.25964930354244481, 
+          'Max_uaterembi-2021' = 0.40610318334051931, 
+          'Max_uaterembi-2022' = 0.26228622251000749, 
+          'Max_vua-2017' = 18.889297892371211, 
+          'Max_vua-2018' = -3.1685682347232516, 
+          'Max_vua-2019' = 3.5858687205038282, 
+          'Max_vua-2020' = 10.336582578450932, 
+          'Max_vua-2021' = -2.1278318818292457, 
+          'Max_vua-2022' = -19.426787091963881, 
+          'Max_uatio-2018' = 0.36541048197884918, 
+          'Max_uatio-2019' = 0.25422782518860848, 
+          'Max_uatio-2020' = -0.064085236232923268, 
+          'Max_uatio-2021' = 0.14375747545420822, 
+          'Max_uatio-2022' = 0.33361108322173555, 
+          'Max_amere-2018' = 0.64166891531571257, 
+          'Max_amere-2022' = 0.33790308838166733, 
+          'Max_du.ami-2018' = 0.063539037557040198, 
+          'Max_kie-2018' = 1.2576821602232846, 
+          'Max_kie-2022' = 0.66142808283013055, 
+          'Max_koko-2018' = 0.3044449049158634, 
+          'Max_mato-2018' = 0.067904940437373523, 
+          'Max_mato-2019' = 0.12121779585272113, 
+          'Max_mato-2020' = 0.040886002192443052, 
+          'Max_mato-2021' = 0.14383717678279465, 
+          'Max_ndo-2018' = 0.067391820164796071, 
+          'Max_ndo-2019' = 0.70737410566848846, 
+          'Max_ndo-2020' = 0.1152239417489662, 
+          'Max_ndo-2021' = 0.13007702451823927, 
+          'Max_ndo-2022' = 0.59108540025242207, 
+          'Max_noe-2019' = 0.078335143966072329, 
+          'Max_noe-2021' = 0.08678933096868767, 
+          'Max_petit.koko-2018' = 1.1407553819010672, 
+          'Max_petit.koko-2021' = 0.043929543655965644, 
+          'Max_petit.koko-2022' = 0.088631091173277651, 
+          'Max_totea-2018' = 0.20167695789195006, 
+          'Max_totea-2020' = 0.11325654893500128, 
+          'Max_totea-2021' = 0.23007439306587035, 
+          'Max_totea-2022' = 0.49551845003911588, 
+          'Max_uie-2018' = 0.069080794194408129, 
+          'Max_uie-2019' = 0.2286918765927182, 
+          'Max_uie-2020' = 0.12103060343594019, 
+          'Max_uie-2021' = 0.28941687990307846, 
+          'Max_uo-2018' = 0.12645455688576762, 
+          'Max_uo-2019' = -0.056507934925277906, 
+          'Max_uo-2021' = 0.18928320589618772, 
+          'Max_puemba-2019' = 0.15711403531494822, 
+          'Max_puemba-2020' = 0.11411726677367579, 
+          'Max_puemba-2021' = 0.14447700522871171, 
+          'Max_puemba-2022' = 0.31590319202580924, 
+          'Max_nouare-2021' = 0.046613743190250849, 
+          'Max_pumbo-2020' = 0.041622375801287394, 
+          'Max_pumbo-2021' = 0.047132503702983865, 
+          'Max_mbore-2020' = 0.079349708016064599, 
+          'Max_mbore-2021' = 0.047597329715586854, 
+          'Max_mbore-2022' = 0.1379363704279481)
+
+out_LBLE_Poisson <- fit_phenology(data=data, 
+                                  fitted.parameters = parg, 
+                                  fixed.parameters = fixed.par, 
+                                  method = "Nelder-Mead", 
+                                  method_Snbinom = "saddlepoint", 
+                                  control = list(trace = 1, REPORT = 1, maxit = 10000), 
+                                  stop.fit = FALSE)
+save(out_LBLE_Poisson, file=file.path("dataOut", "out_LBLE_Poisson.Rdata"))
+
+parg <- c(out_LBLE_Poisson$par, out_LBLE_Poisson$fixed.parameters[grepl("^Max_", names(out_LBLE_Poisson$fixed.parameters))])
+fixed.par <- c(Min=0, Flat=0, Theta=1E9)
+out_LBLE_All_Poisson <- fit_phenology(data=data, 
+                                      fitted.parameters = parg, 
+                                      fixed.parameters = fixed.par, 
+                                      method = "Nelder-Mead", 
+                                      method_Snbinom = "saddlepoint", 
+                                      control = list(trace = 1, REPORT = 1, maxit = 0), 
+                                      stop.fit = TRUE)
+save(out_LBLE_All_Poisson, file=file.path("dataOut", "out_LBLE_All_Poisson.Rdata"))
+```
+
+### Test série kouare-2017 et tout - Distribution de Poisson
+
+```{r eval=FALSE}
+getFromNamespace(".Lnegbin", ns="phenology")(x=parg, 
+                                             pt=list(fixed=fixed.par, 
+                                                     out=FALSE, 
+                                                     data=data, 
+                                                     method_Snbinom="saddlepoint"))[["kouare-2017"]]
+getFromNamespace(".Lnegbin", ns="phenology")(x=parg, 
+                                             pt=list(fixed=fixed.par, 
+                                                     out=TRUE, 
+                                                     data=data, 
+                                                     method_Snbinom="saddlepoint"))
+```
+
+## Peak Year, LBLE Year - Distribution de Poisson
+
+```{r PeakYear_LBLEYear_Poisson, eval=FALSE}
+#parametres fixes : minB=MinE=Flat=0
+fixed.par <- c(Min=0, Flat=0, Theta=1E9)
+
+parg <- par_init(data, fixed.parameters=fixed.par)
+fixed.par <- c(fixed.par, parg[parg==0])
+
+# These values are the fitted ones
+parg <-   c('LengthB_2017' = 66.396718257945707, 
+            'LengthE_2017' = 81.195290149479888, 
+            'LengthB_2018' = 79.700725944080276, 
+            'LengthE_2018' = 76.389007645299571, 
+            'LengthB_2019' = 20.535876038981886, 
+            'LengthE_2019' = 778.82174708391165, 
+            'LengthB_2020' = 106.74669311933633, 
+            'LengthE_2020' = 0.22903953176461062, 
+            'LengthB_2021' = 50.136140099627731, 
+            'LengthE_2021' = 85.939368922053532, 
+            'LengthB_2022' = 66.859396110977627, 
+            'LengthE_2022' = 56.745404406992314, 
+            'Peak_2017' = 88.642666715604378, 
+            'Peak_2018' = 104.23831776901903, 
+            'Peak_2019' = 60.861416379752121, 
+            'Peak_2020' = 116.93390020253631, 
+            'Peak_2021' = 76.237711523935772, 
+            'Peak_2022' = 80.514681085613773, 
+            'Max_atire-2017' = 0.73734122271327407, 
+            'Max_atire-2018' = 0.83978036789040511, 
+            'Max_atire-2019' = 0.33721174917639074, 
+            'Max_atire-2020' = 0.93292911215779439, 
+            'Max_atire-2021' = 0.61554092157709717, 
+            'Max_atire-2022' = 0.47864838853424829, 
+            'Max_gi-2017' = 0.53616245485666014, 
+            'Max_gi-2018' = 0.73936113029457495, 
+            'Max_gi-2019' = 0.35364622423851083, 
+            'Max_gi-2020' = 0.39359887939096116, 
+            'Max_gi-2021' = 0.81622084946024787, 
+            'Max_gi-2022' = 0.23449809468071889, 
+            'Max_ieroue-2017' = 0.15609822276806032, 
+            'Max_ieroue-2018' = 0.053833484279529498, 
+            'Max_ieroue-2019' = 0.054182883592361224, 
+            'Max_ieroue-2020' = 0.095248865134700114, 
+            'Max_ieroue-2021' = 0.096852378803897451, 
+            'Max_ieroue-2022' = 0.25923732087679102, 
+            'Max_kouare-2017' = 0.20071439853912929, 
+            'Max_kouare-2018' = 0.53937186183773911, 
+            'Max_kouare-2019' = 0.084022987361699941, 
+            'Max_kouare-2020' = 0.50575769606110865, 
+            'Max_kouare-2021' = 0.14625384676187025, 
+            'Max_kouare-2022' = 0.24671061349468765, 
+            'Max_nda-2017' = 0.43084332179799084, 
+            'Max_nda-2018' = 0.12851835463562131, 
+            'Max_nda-2019' = 0.13472275850839907, 
+            'Max_nda-2020' = 0.2436782566632601, 
+            'Max_nda-2021' = 0.22035996499720234, 
+            'Max_nda-2022' = 0.5065780384076134, 
+            'Max_nge-2017' = 0.25227241476506351, 
+            'Max_nge-2018' = 0.8285311664229752, 
+            'Max_nge-2019' = 0.29147104629060056, 
+            'Max_nge-2020' = 0.3812750623722746, 
+            'Max_nge-2021' = 0.84164515642068882, 
+            'Max_nge-2022' = 0.32415813786752429, 
+            'Max_redika-2017' = 0.64806230115002472, 
+            'Max_redika-2018' = 0.29236238739235521, 
+            'Max_redika-2019' = 0.30241368998565954, 
+            'Max_redika-2020' = 0.019052986264205669, 
+            'Max_redika-2021' = 0.22471363986006371, 
+            'Max_redika-2022' = 0.097145466708760578, 
+            'Max_tere-2017' = 0.039642506364145937, 
+            'Max_tere-2022' = 0.033248701745635642, 
+            'Max_ua-2017' = 0.22497380001507195, 
+            'Max_ua-2018' = 0.43432140523327328, 
+            'Max_ua-2019' = 0.27820859088871153, 
+            'Max_ua-2020' = 0.29747207546297472, 
+            'Max_ua-2021' = 0.34497919658699167, 
+            'Max_ua-2022' = 0.29947445091027031, 
+            'Max_uaterembi-2017' = 0.49661953034233586, 
+            'Max_uaterembi-2018' = 0.27925765959207915, 
+            'Max_uaterembi-2019' = 0.099936891879805506, 
+            'Max_uaterembi-2020' = 0.27234184197489514, 
+            'Max_uaterembi-2021' = 0.41870157288033305, 
+            'Max_uaterembi-2022' = 0.29135700868948328, 
+            'Max_vua-2017' = 3.2897340735437393, 
+            'Max_vua-2018' = 0.14191310328585505, 
+            'Max_vua-2019' = -0.80599377374045467, 
+            'Max_vua-2020' = 2.3669862661887948, 
+            'Max_vua-2021' = -2.891931641900356, 
+            'Max_vua-2022' = -0.52588563521162868, 
+            'Max_uatio-2018' = 0.33736214053023067, 
+            'Max_uatio-2019' = 0.23947737877889286, 
+            'Max_uatio-2020' = 0.10223924720040463, 
+            'Max_uatio-2021' = 0.14635042415938393, 
+            'Max_uatio-2022' = 0.30693111607799822, 
+            'Max_amere-2018' = 0.55446321973377888, 
+            'Max_amere-2022' = 0.27464566385106914, 
+            'Max_du.ami-2018' = 0.046276921760126641, 
+            'Max_kie-2018' = 1.0397351075348429, 
+            'Max_kie-2022' = 0.60413013714309205, 
+            'Max_koko-2018' = 0.3157221269227718, 
+            'Max_mato-2018' = 0.046320133391464194, 
+            'Max_mato-2019' = 0.11513023909459984, 
+            'Max_mato-2020' = 0.037516947083154555, 
+            'Max_mato-2021' = 0.11847656181298506, 
+            'Max_ndo-2018' = 0.046269080896635485, 
+            'Max_ndo-2019' = 0.59878378234305341, 
+            'Max_ndo-2020' = 0.11046095673881737, 
+            'Max_ndo-2021' = 0.11686813684957606, 
+            'Max_ndo-2022' = 0.51556444156541514, 
+            'Max_noe-2019' = 0.063151796956252476, 
+            'Max_noe-2021' = 0.063054918358014134, 
+            'Max_petit.koko-2018' = 0.66311975769692455, 
+            'Max_petit.koko-2021' = 0.031193026356939803, 
+            'Max_petit.koko-2022' = 0.065673533170041168, 
+            'Max_totea-2018' = 0.16166092723207828, 
+            'Max_totea-2020' = 0.11048751588663981, 
+            'Max_totea-2021' = 0.25476578141889017, 
+            'Max_totea-2022' = 0.41819456799693899, 
+            'Max_uie-2018' = 0.046250243503773804, 
+            'Max_uie-2019' = 0.23000119707558531, 
+            'Max_uie-2020' = 0.11050325259969621, 
+            'Max_uie-2021' = 0.30119272739875386, 
+            'Max_uo-2018' = 0.11558625641131053, 
+            'Max_uo-2019' = 0.04216207701074999, 
+            'Max_uo-2021' = 0.12493544023445201, 
+            'Max_puemba-2019' = 0.15854632909051347, 
+            'Max_puemba-2020' = 0.10864737152412463, 
+            'Max_puemba-2021' = 0.094721877501466142, 
+            'Max_puemba-2022' = 0.27916982129627821, 
+            'Max_nouare-2021' = 0.031492183825701278, 
+            'Max_pumbo-2020' = 0.036231776953162306, 
+            'Max_pumbo-2021' = 0.03150850513614744, 
+            'Max_mbore-2020' = 0.12298187144418952, 
+            'Max_mbore-2021' = 0.03119588987720737, 
+            'Max_mbore-2022' = 0.13018532854512141)
+
+out_Peak_LBLE_Poisson <- fit_phenology(data=data, 
+                                       fitted.parameters = parg, 
+                                       fixed.parameters = fixed.par, 
+                                       method = c("Nelder-Mead", "BFGS"), 
+                                       method_Snbinom = "saddlepoint", 
+                                       control = list(trace = 1, REPORT = 1, maxit = 1000), 
+                                       stop.fit = FALSE)
+save(out_Peak_LBLE_Poisson, file=file.path("dataOut", "out_Peak_LBLE_Poisson.Rdata"))
+
+parg <- c(out_Peak_LBLE_Poisson$par, out_Peak_LBLE_Poisson$fixed.parameters[grepl("^Max_", names(out_Peak_LBLE_Poisson$fixed.parameters))])
+fixed.par <- c(Min=0, Flat=0, Theta=1E9)
+out_Peak_LBLE_All_Poisson <- fit_phenology(data=data, 
+                                           fitted.parameters = parg, 
+                                           fixed.parameters = fixed.par, 
+                                           method = "Nelder-Mead", 
+                                           method_Snbinom = "saddlepoint", 
+                                           control = list(trace = 1, REPORT = 1, maxit = 0), 
+                                           stop.fit = TRUE)
+save(out_Peak_LBLE_All_Poisson, file=file.path("dataOut", "out_Peak_LBLE_All_Poisson.Rdata"))
+```
+
+### Test série kouare-2017 et tout - Distribution de Poisson
+
+```{r eval=FALSE}
+getFromNamespace(".Lnegbin", ns="phenology")(x=parg, 
+                                             pt=list(fixed=fixed.par, 
+                                                     out=FALSE, 
+                                                     data=data, 
+                                                     method_Snbinom="saddlepoint"))[["kouare-2017"]]
+getFromNamespace(".Lnegbin", ns="phenology")(x=parg, 
+                                             pt=list(fixed=fixed.par, 
+                                                     out=TRUE, 
+                                                     data=data, 
+                                                     method_Snbinom="saddlepoint"))
+```
+
+## Comparison of the 3 models - Distribution de Poisson
+
+```{r CompareAICc_Poisson}
+load(file=file.path("dataOut", "out_Poisson.Rdata"))
+load(file=file.path("dataOut", "out_Peak_Poisson.Rdata"))
+load(file=file.path("dataOut", "out_Peak_LBLE_Poisson.Rdata"))
+load(file=file.path("dataOut", "out_LBLE_Poisson.Rdata"))
+
+compare_AICc(Common=out_Poisson, 
+             Peak=out_Peak_Poisson, 
+             LBLE=out_LBLE_Poisson, 
+             PeakLBLE=out_Peak_LBLE_Poisson)
+```
+
+## MCMC pour tous les paramètres - Distribution de Poisson
+
+Je fais seulement les paramètres shape d'abord ensemble.
+
+```{r prepshapemcmc_Poisson, eval=FALSE}
+load(file=file.path("dataOut", "out_Peak_All_Poisson.Rdata"))
+
+out_Peak_shape_Poisson <- out_Peak_All_Poisson
+parg <- out_Peak_All_Poisson$par
+out_Peak_shape_Poisson$fixed.parameters <- c(out_Peak_shape_Poisson$fixed.parameters, 
+                                                      parg[grepl("^Max_", names(parg))])
+out_Peak_shape_Poisson$par <- parg[!grepl("^Max_", names(parg))]
+save(out_Peak_shape_Poisson, file=file.path("dataOut", "out_Peak_shape_Poisson.Rdata"))
+```
+
+
+```{r shapemcmc_Poisson, eval=FALSE}
+load(file=file.path("dataOut", "out_Peak_shape_Poisson.Rdata"))
+priors <- phenology_MHmcmc_p(
+  result = out_Peak_shape_Poisson,
+  default.density = "dunif",
+  accept = TRUE
+)
+
+priors[, "SDProp"] <- c('Peak_2017' = 6.3358096162594091, 
+                        'Peak_2018' = 6.3358096162594144, 
+                        'Peak_2019' = 11.766503573053207, 
+                        'Peak_2020' = 11.766503573053205, 
+                        'Peak_2021' = 6.3358096162594117, 
+                        'Peak_2022' = 11.766503573053191, 
+                        'LengthB' = 7.348039554951737, 
+                        'LengthE' = 7.3480395549517423)
+
+# priors$Init <- priors$Init + 0.001
+
+set.seed(1)
+out_mcmc_Peak_All_shape_Poisson <- phenology_MHmcmc(
+  result = out_Peak_shape_Poisson,
+  n.iter = 50000,
+  parametersMCMC = priors,
+  n.chains = 1,
+  n.adapt = 0,
+  thin = 1,
+  trace = 5000,
+  traceML = TRUE,
+  adaptive = TRUE
+)
+
+save(out_mcmc_Peak_All_shape_Poisson, 
+     file=file.path("dataOut", "out_mcmc_Peak_All_shape_Poisson.Rdata"))
+```
+
+## Résultats du MCMC - Distribution de Poisson
+
+```{r eval=FALSE}
+load(file=file.path("dataOut", "out_mcmc_Peak_All_shape_Poisson.Rdata"))
+load(file=file.path("dataOut", "out_Peak_shape_Poisson.Rdata"))
+
+# Exemple d'ajustement; noter que les max sont supposés sans erreur, ce qui est 
+# bien entendu faux 
+# Ils sont faits après
+# pdf(file = "Atire.pdf", width = 6, height = 6, pointsize = 12)
+plot(out_Peak_shape_Poisson, 
+     resultmcmc = out_mcmc_Peak_All_shape_Poisson, series = 1:5)
+# dev.off()
+
+# Exemples de distribution
+plot(out_mcmc_Peak_All_shape_Poisson, parameters = "Peak_2017", breaks=seq(from=0, to=365, by=1), xlim=c(40, 100))
+plot(out_mcmc_Peak_All_shape_Poisson, parameters = "Peak_2018", breaks=seq(from=0, to=365, by=1), xlim=c(40, 100))
+plot(out_mcmc_Peak_All_shape_Poisson, parameters = "Peak_2019", breaks=seq(from=0, to=365, by=1), xlim=c(40, 100))
+plot(out_mcmc_Peak_All_shape_Poisson, parameters = "Peak_2020", breaks=seq(from=0, to=365, by=1), xlim=c(40, 100))
+plot(out_mcmc_Peak_All_shape_Poisson, parameters = "Peak_2021", breaks=seq(from=0, to=365, by=1), xlim=c(40, 100))
+plot(out_mcmc_Peak_All_shape_Poisson, parameters = "Peak_2022", breaks=seq(from=0, to=365, by=1), xlim=c(40, 100))
+
+par(mar=c(4, 4, 1, 2))
+plot(density(out_mcmc_Peak_All_shape_Poisson$resultMCMC[[1]][, "Peak_2017"]), bty="n", main="", 
+     xlab=" Credible range of date of peak", xlim=c(40, 100), ylim=c(0, 0.2), las=1, lwd=2, xaxt="n")
+axis(side = 1, at=seq(from=40, to=100, by=10), labels=paste0(substr(as.character(as.Date("2020-10-01")+seq(from=40, to=100, by=10)), 9, 10), "/", substr(as.character(as.Date("2020-10-01")+seq(from=40, to=100, by=10)), 6, 7)))
+par(new=TRUE)
+plot(density(out_mcmc_Peak_All_shape_Poisson$resultMCMC[[1]][, "Peak_2018"]), bty="n", main="", 
+     xlim=c(40, 100), col="red", ylim=c(0, 0.2), axes=FALSE, xlab="", ylab="", lwd=2)
+par(new=TRUE)
+plot(density(out_mcmc_Peak_All_shape_Poisson$resultMCMC[[1]][, "Peak_2019"]), bty="n", main="", 
+     xlim=c(40, 100), col="green", ylim=c(0, 0.2), axes=FALSE, xlab="", ylab="", lwd=2)
+par(new=TRUE)
+plot(density(out_mcmc_Peak_All_shape_Poisson$resultMCMC[[1]][, "Peak_2020"]), bty="n", main="", 
+     xlim=c(40, 100), col="purple", ylim=c(0, 0.2), axes=FALSE, xlab="", ylab="", lwd=2)
+par(new=TRUE)
+plot(density(out_mcmc_Peak_All_shape_Poisson$resultMCMC[[1]][, "Peak_2021"]), bty="n", main="", 
+     xlim=c(40, 100), col="pink", ylim=c(0, 0.2), axes=FALSE, xlab="", ylab="", lwd=2)
+par(new=TRUE)
+plot(density(out_mcmc_Peak_All_shape_Poisson$resultMCMC[[1]][, "Peak_2022"]), bty="n", main="", 
+     xlim=c(40, 100), col="blue", ylim=c(0, 0.2), axes=FALSE, xlab="", ylab="", lwd=2)
+
+legend(x = "topleft", legend = as.character(2017:2022), col=c("black", "red", 
+                                                              "green", "purple", 
+                                                              "pink", "blue"), 
+       pch=NA, lwd=2)
+
+par(mar=c(4, 4, 1, 2))
+plot(density(out_mcmc_Peak_All_shape_Poisson$resultMCMC[[1]][, "LengthB"]), bty="n", main="", 
+     xlab="Peak - Beginning of nesting season", xlim=c(0, 100), ylim=c(0, 0.1), las=1, lwd=2)
+par(mar=c(4, 4, 1, 2))
+plot(density(out_mcmc_Peak_All_shape_Poisson$resultMCMC[[1]][, "LengthE"]), bty="n", main="", 
+     xlab="End of nesting season - Peak", xlim=c(0, 100), ylim=c(0, 0.10), las=1, lwd=2)
+```
+
+
+## MCMC pour les Max
+
+```{r mcmcmax, eval=FALSE}
+# Je calcule la distribution en mcmc pour les max de toutes les séries
+# Même celles avec que des 0
+load(file=file.path("dataOut", "out_mcmc_Peak_All_shape_Poisson.Rdata"))
+mcmcpar <- out_mcmc_Peak_All_shape_Poisson$resultMCMC[[1]]
+par_shape <- as.parameters(out_mcmc_Peak_All_shape_Poisson, index="median")
+fixedp <- c(Min=0, Flat=0, Theta=1E9, par_shape)
+
+
+for (ilot in ilots) {
+  for (annee_ec in annees) {
+    
+    print(ilot)
+    print(annee_ec)
+    
+    data_ec <- subset(data_df, subset = (data_df$site==ilot) & (data_df$Year==annee_ec), 
+                      select = c("date", "pontes", "pontes_correction", "site"))
+    if (nrow(data_ec) > 0) {
+      data_ec <- cbind(data_ec, CountTypes=ifelse((data_ec$pontes == data_ec$pontes_correction), "exact", as.character(data_ec$pontes_correction)))
+      data_ec <- data_ec[, c("date", "pontes", "site", "CountTypes")]
+      data_ec$site <- paste0(data_ec$site, "-", as.character(annee_ec))
+      data_series <- add_phenology(add=data_ec, previous = NULL, 
+                                   colname.Rookery = "site",
+                                   colname.CountTypes = "CountTypes",
+                                   reference = as.Date(paste0(as.character(annee_ec), "-10-01")), 
+                                   check.overlapping.dates = TRUE, 
+                                   include0 = TRUE, 
+                                   expandRange0Observation = FALSE, silent = TRUE)
+      
+      fittedpar_name <- names(par_init(data=data_series, fixed.parameters = fixedp))[1]
+      fittedpar <- out_Peak_shape_Poisson$fixed.parameters[fittedpar_name]
+      
+      out_series <- fit_phenology(data=data_series, 
+                                  fixed.parameters = fixedp, 
+                                  fitted.parameters = fittedpar, 
+                                  control = list(trace = 1, REPORT = 1, maxit = 0),
+                                  method = "Nelder-Mead", 
+                                  stop.fit = TRUE)
+      priors <- phenology_MHmcmc_p(
+        result = out_series,
+        default.density = "dunif",
+        accept = TRUE
+      )
+      
+      priors$SDProp <- 0.77
+      
+      set.seed(1)
+      out_mcmc_series <- phenology_MHmcmc(
+        result = out_series,
+        n.iter = nrow(mcmcpar),
+        parametersMCMC = priors,
+        n.chains = 1,
+        n.adapt = 0,
+        thin = 1,
+        trace = FALSE,
+        traceML = FALSE,
+        adaptive = TRUE
+      )
+      
+      save(out_mcmc_series, file=file.path("dataOut", paste0("out_mcmc_Poisson_", ilot, ".", as.character(annee_ec), ".Rdata")))
+    }
+  }
+}
+```
+
+
+## Format MCMC pour les Max
+
+```{r formatresult, eval=FALSE}
+# Je relis tous les résultats et je crée
+# un tableau avec les résultats de toutes les variables 
+# incluant les max même pour les séries que avec des 0
+load(file=file.path("dataOut", "out_mcmc_Peak_All_shape_Poisson.Rdata"))
+mcmcpar <- out_mcmc_Peak_All_shape$resultMCMC[[1]][1:50000, ]
+
+data_series <- NULL
+parg <- as.parameters(out_mcmc_Peak_All_shape_Poisson, index = "median")
+
+for (ilot in ilots) {
+  for (annee_ec in annees) {
+    
+    print(ilot)
+    print(annee_ec)
+    
+    data_ec <- subset(data_df, subset = (data_df$site==ilot) & (data_df$Year==annee_ec), 
+                      select = c("date", "pontes", "pontes_correction", "site"))
+    if (nrow(data_ec) > 0) {
+      data_ec <- cbind(data_ec, CountTypes=ifelse((data_ec$pontes == data_ec$pontes_correction), "exact", as.character(data_ec$pontes_correction)))
+      data_ec <- data_ec[, c("date", "pontes", "site", "CountTypes")]
+      data_ec$site <- paste0(data_ec$site, "-", as.character(annee_ec))
+      data_series <- add_phenology(add=data_ec, previous = data_series, 
+                                   colname.Rookery = "site",
+                                   colname.CountTypes = "CountTypes",
+                                   reference = as.Date(paste0(as.character(annee_ec), "-10-01")), 
+                                   check.overlapping.dates = TRUE, 
+                                   include0 = TRUE, 
+                                   expandRange0Observation = FALSE, silent = TRUE)
+      
+      load(file=file.path("dataOut", paste0("out_mcmc_Poisson_", ilot, ".", as.character(annee_ec), ".Rdata")))
+      
+      parg <- c(parg, as.parameters(out_mcmc_series, index="median"))
+      df_serie <- data.frame(x=out_mcmc_series$resultMCMC[[1]])
+      colnames(df_serie) <- paste0("Max_", ilot, "-", as.character(annee_ec))
+      
+      mcmcpar <- cbind(mcmcpar, df_serie)
+    }
+  }
+}
+```
+
+
+```{r formatresultall, eval=FALSE}
+load(file=file.path("dataOut", "out_Peak_All_Poisson.Rdata"))
+load(file=file.path("dataOut", "out_mcmc_Peak_All_shape_Poisson.Rdata"))
+
+
+priors_series <- phenology_MHmcmc_p(
+  result = out_Peak_All_Poisson,
+  default.density = "dunif",
+  accept = TRUE
+)
+
+# Je rajoutes les nouvelles séries. 
+# S'il y a un espace dans le nom, je le transforme en .
+out_mcmc_series <- out_mcmc_Peak_All_shape_Poisson
+out_mcmc_series$resultMCMC[[1]] <- mcmcpar
+out_mcmc_series$resultMCMC.total <- NULL
+
+colnames(out_mcmc_series$resultMCMC[[1]]) <- gsub(" ", ".", colnames(out_mcmc_series$resultMCMC[[1]]))
+
+# Je mets les priors qui vont bien
+out_mcmc_series$parametersMCMC$parameters <- priors_series
+out_mcmc_series$parametersMCMC$n.iter <- 50000
+# Je vérifie que tout est ok
+parg_series <- as.parameters(out_mcmc_series, index = "median")
+save(out_mcmc_series, file=file.path("dataOut", "out_mcmc_series.Rdata"))
+```
+
+```{r}
+load(file=file.path("dataOut", "out_mcmc_series.Rdata"))
+resultPeak <- matrix(c(format(as.Date(paste0(as.character(2017:2022), "-10-01"))+as.parameters(out_mcmc_series, index = "median")[c("Peak_2017", "Peak_2018", "Peak_2019", "Peak_2020", "Peak_2021", "Peak_2022")], format="%d/%m/%Y"), 
+                       format(as.Date(paste0(as.character(2017:2022), "-10-01"))+(as.parameters(out_mcmc_series, index = "median")[c("Peak_2017", "Peak_2018", "Peak_2019", "Peak_2020", "Peak_2021", "Peak_2022")]-1.96*out_mcmc_series$SD[c("Peak_2017", "Peak_2018", "Peak_2019", "Peak_2020", "Peak_2021", "Peak_2022")]), format="%d/%m/%Y"), 
+                       format(as.Date(paste0(as.character(2017:2022), "-10-01"))+(as.parameters(out_mcmc_series, index = "median")[c("Peak_2017", "Peak_2018", "Peak_2019", "Peak_2020", "Peak_2021", "Peak_2022")]+1.96*out_mcmc_series$SD[c("Peak_2017", "Peak_2018", "Peak_2019", "Peak_2020", "Peak_2021", "Peak_2022")]), format="%d/%m/%Y")), nrow=3, byrow=TRUE)
+colnames(resultPeak) <- paste0(as.character(2017:2022), "-", as.character(2018:2023))
+rownames(resultPeak) <- c("Median", "Lower 95% Credible Interval", "Upper 95% Credible Interval")
+```
+
+
+```{r}
+resultBegin_ordinal <- matrix(c(quantile(out_mcmc_series$resultMCMC[[1]][, "Peak_2017"]-out_mcmc_series$resultMCMC[[1]][, "LengthB"], probs=c(0.025, 0.5, 0.975)), 
+                 quantile(out_mcmc_series$resultMCMC[[1]][, "Peak_2018"]-out_mcmc_series$resultMCMC[[1]][, "LengthB"], probs=c(0.025, 0.5, 0.975)), 
+                 quantile(out_mcmc_series$resultMCMC[[1]][, "Peak_2019"]-out_mcmc_series$resultMCMC[[1]][, "LengthB"], probs=c(0.025, 0.5, 0.975)), 
+                 quantile(out_mcmc_series$resultMCMC[[1]][, "Peak_2020"]-out_mcmc_series$resultMCMC[[1]][, "LengthB"], probs=c(0.025, 0.5, 0.975)), 
+                 quantile(out_mcmc_series$resultMCMC[[1]][, "Peak_2021"]-out_mcmc_series$resultMCMC[[1]][, "LengthB"], probs=c(0.025, 0.5, 0.975)), 
+                 quantile(out_mcmc_series$resultMCMC[[1]][, "Peak_2022"]-out_mcmc_series$resultMCMC[[1]][, "LengthB"], probs=c(0.025, 0.5, 0.975))), ncol=3, byrow=TRUE)
+rownames(resultBegin_ordinal) <- paste0(as.character(2017:2022), "-", as.character(2018:2023))
+colnames(resultBegin_ordinal) <- c("Lower", "Median", "Upper")
+
+resultPeak_ordinal <- matrix(c(quantile(out_mcmc_series$resultMCMC[[1]][, "Peak_2017"], probs=c(0.025, 0.5, 0.975)), 
+                 quantile(out_mcmc_series$resultMCMC[[1]][, "Peak_2018"], probs=c(0.025, 0.5, 0.975)), 
+                 quantile(out_mcmc_series$resultMCMC[[1]][, "Peak_2019"], probs=c(0.025, 0.5, 0.975)), 
+                 quantile(out_mcmc_series$resultMCMC[[1]][, "Peak_2020"], probs=c(0.025, 0.5, 0.975)), 
+                 quantile(out_mcmc_series$resultMCMC[[1]][, "Peak_2021"], probs=c(0.025, 0.5, 0.975)), 
+                 quantile(out_mcmc_series$resultMCMC[[1]][, "Peak_2022"], probs=c(0.025, 0.5, 0.975))), ncol=3, byrow=TRUE)
+rownames(resultPeak_ordinal) <- paste0(as.character(2017:2022), "-", as.character(2018:2023))
+colnames(resultPeak_ordinal) <- c("Lower", "Median", "Upper")
+  
+resultEnd_ordinal <- matrix(c(quantile(out_mcmc_series$resultMCMC[[1]][, "Peak_2017"]+out_mcmc_series$resultMCMC[[1]][, "LengthE"], probs=c(0.025, 0.5, 0.975)), 
+                 quantile(out_mcmc_series$resultMCMC[[1]][, "Peak_2018"]+out_mcmc_series$resultMCMC[[1]][, "LengthE"], probs=c(0.025, 0.5, 0.975)), 
+                 quantile(out_mcmc_series$resultMCMC[[1]][, "Peak_2019"]+out_mcmc_series$resultMCMC[[1]][, "LengthE"], probs=c(0.025, 0.5, 0.975)), 
+                 quantile(out_mcmc_series$resultMCMC[[1]][, "Peak_2020"]+out_mcmc_series$resultMCMC[[1]][, "LengthE"], probs=c(0.025, 0.5, 0.975)), 
+                 quantile(out_mcmc_series$resultMCMC[[1]][, "Peak_2021"]+out_mcmc_series$resultMCMC[[1]][, "LengthE"], probs=c(0.025, 0.5, 0.975)), 
+                 quantile(out_mcmc_series$resultMCMC[[1]][, "Peak_2022"]+out_mcmc_series$resultMCMC[[1]][, "LengthE"], probs=c(0.025, 0.5, 0.975))), ncol=3, byrow=TRUE)
+rownames(resultEnd_ordinal) <- paste0(as.character(2017:2022), "-", as.character(2018:2023))
+colnames(resultEnd_ordinal) <- c("Lower", "Median", "Upper")
+
+```
+
+```{r}
+pdf(file = "NestingSeason.pdf", width = 7, height = 5, pointsize = 14)
+years <- 2017:2022
+par(mar=c(4, 4, 2, 4))
+par(xpd=TRUE)
+plot(x = as.numeric(years), y=resultPeak_ordinal[, "Median"]-1, las=1, ylim=c(as.numeric(as.Date("2000-10-01")-as.Date("2000-10-01")+1), as.numeric(as.Date("2001-04-01")-as.Date("2000-10-01")+1)), bty="n", 
+     ylab="", xlab="", type="n", main="", yaxt="n", xaxt="n", 
+     xlim=c(2016.5, 2022.5))
+axis(2, at=as.numeric(seq(from=as.Date("2000-10-01"), to=as.Date("2001-04-01"), by="1 month")-as.Date("2000-10-01")), 
+     labels = format(unname(as.Date(paste0("2000-10-01"))+as.numeric(seq(from=as.Date("2000-10-01"), to=as.Date("2001-04-01"), by="1 month")-as.Date("2000-10-01"))), format="%d/%m"), las=1)
+axis(1, at=min(as.numeric(years)): max(as.numeric(years)), labels = paste0(as.character(2017:2022), "\n-\n", as.character(2018:2023)), cex.axis=1, padj=0.7)
+
+for (i in 1:length(years)) {
+  polygon(x=c(as.numeric(years[i])-0.3, as.numeric(years[i])-0.3, as.numeric(years[i])+0.3, as.numeric(years[i])+0.3), 
+          y=c(resultPeak_ordinal[i, "Lower"], resultPeak_ordinal[i, "Upper"], resultPeak_ordinal[i, "Upper"], resultPeak_ordinal[i, "Lower"])-1, col="lightgrey")
+  polygon(x=c(as.numeric(years[i])-0.3, as.numeric(years[i])-0.3, as.numeric(years[i])+0.3, as.numeric(years[i])+0.3), 
+          y=c(resultBegin_ordinal[i, "Lower"], resultBegin_ordinal[i, "Upper"], resultBegin_ordinal[i, "Upper"], resultBegin_ordinal[i, "Lower"])-1, col="lightgrey")
+  polygon(x=c(as.numeric(years[i])-0.3, as.numeric(years[i])-0.3, as.numeric(years[i])+0.3, as.numeric(years[i])+0.3), 
+          y=c(resultEnd_ordinal[i, "Lower"], resultEnd_ordinal[i, "Upper"], resultEnd_ordinal[i, "Upper"], resultEnd_ordinal[i, "Lower"])-1, col="lightgrey")
+  lines(x=c(as.numeric(years[i])-0.4, as.numeric(years[i])+0.4), 
+        y=rep(resultPeak_ordinal[i, "Median"], 2))
+  lines(x=c(as.numeric(years[i])-0.4, as.numeric(years[i])+0.4), 
+        y=rep(resultBegin_ordinal[i, "Median"], 2))
+  lines(x=c(as.numeric(years[i])-0.4, as.numeric(years[i])+0.4), 
+        y=rep(resultEnd_ordinal[i, "Median"], 2))
+  lines(x=rep(as.numeric(years[i]), 2), 
+        y=c(resultBegin_ordinal[i, "Lower"], resultEnd_ordinal[i, "Upper"])-1)
+}
+par(xpd=TRUE)
+text(x=2022.5, y=resultBegin_ordinal[i, "Median"], label="Begin", pos=4)
+text(x=2022.5, y=resultPeak_ordinal[i, "Median"], label="Peak", pos=4)
+text(x=2022.5, y=resultEnd_ordinal[i, "Median"], label="End", pos=4)
+
+dev.off()
+```
+
+
+```{r summaryresult, eval=FALSE}
+phenologyout <- summary(object = out_Peak_All_Poisson, resultmcmc=out_mcmc_series)
+
+save(phenologyout, file=file.path("dataOut", "phenologyout.Rdata"))
+```
+
+## Print results
+
+```{r printresults}
+load(file=file.path("dataOut", "phenologyout.Rdata"))
+print(phenologyout)
+```
+
+## Plot results
+
+```{r plotresults}
+load(file=file.path("dataOut", "out_mcmc_series.Rdata"))
+load(file=file.path("dataOut", "out_Peak_All_Poisson.Rdata"))
+outL <- getFromNamespace(".Lnegbin", ns="phenology")(x=out_Peak_All_Poisson$par, 
+                                                     pt=list(fixed=out_Peak_All_Poisson$fixed.parameters, 
+                                                             out=FALSE, 
+                                                             data=out_Peak_All_Poisson$data, 
+                                                             method_Snbinom=out_Peak_All_Poisson$method_Snbinom))
+for (i in 1:length(out_Peak_All_Poisson$data)) {
+  print(outL[[i]])
+  plot(out_Peak_All_Poisson, resultmcmc=out_mcmc_series, series = i)
+}
+
+out_Peak_All_Poisson_fake <- out_Peak_All_Poisson
+
+out_Peak_All_Poisson_fake$par <- c(out_Peak_All_Poisson_fake$par, "Max_Fake-2018"=1)
+
+
+   ```
+
+# Ajustement des séries manquantes
+
+```{r}
+fr <- phenology2fitRMU(
+  phenologyout = phenologyout,
+  col.mean = "with_obs_Mean_MCMC",
+  col.var = "with_obs_Var_MCMC",
+  rookeries.names.grep = "(.+)-.+",
+  years.grep = ".+-(.+)$",
+  limit.cv = +Inf,
+  limit.sd = +Inf,
+  density = "dgamma"
+)
+```
+
+## Modèle avec une proportion constante d'utilisation des plages
+
+```{r eval=FALSE}
+parg <- c('T_2017' = 492.11587373448879, 
+  'T_2018' = 565.77939276911309, 
+  'T_2019' = 424.08784234736402, 
+  'T_2020' = 351.88089962576572, 
+  'T_2021' = 477.4093631868036, 
+  'T_2022' = 338.5661347801618, 
+  'a0_gi.mean' = 0.84931006000191889, 
+  'a0_ieroue.mean' = 0.24681156883940822, 
+  'a0_kouare.mean' = 0.38276980668649813, 
+  'a0_nda.mean' = 0.39130192626972887, 
+  'a0_nge.mean' = 0.73843213022690413, 
+  'a0_redika.mean' = 0.33713225547938463, 
+  'a0_tere.mean' = 0.12538196820081576, 
+  'a0_ua.mean' = 0.2225322777305595, 
+  'a0_uaterembi.mean' = 0.47469785313867358, 
+  'a0_vua.mean' = 0.52864753847476831, 
+  'a0_uatio.mean' = 0.38194980815486612, 
+  'a0_amere.mean' = 0.84086857195340581, 
+  'a0_du.ami.mean' = 0.22255486067037744, 
+  'a0_kie.mean' = 1.5659024441657339, 
+  'a0_koko.mean' = 0.68724805695757329, 
+  'a0_mato.mean' = 0.25093344874713486, 
+  'a0_ndo.mean' = 0.30043230128161885, 
+  'a0_noe.mean' = 0.19240804428978917, 
+  'a0_petit.koko.mean' = 0.2363996472382914, 
+  'a0_totea.mean' = 0.42469442804707958, 
+  'a0_uie.mean' = 0.28773584598179713, 
+  'a0_uo.mean' = 0.22831554970138737, 
+  'a0_puemba.mean' = 0.37741583775153931, 
+  'a0_nouare.mean' = 0.2026604471611099, 
+  'a0_pumbo.mean' = 0.20917244155303699, 
+  'a0_ugo.mean' = 0.16900389492767423, 
+  'a0_mbore.mean' = 0.26387150558115419, 
+  'SD_' = 7.0362619843885108)
+
+fRMU_cst <- fitRMU(
+  RMU.data = fr$RMU.data,
+  years.byrow = fr$years.byrow,
+  RMU.names = fr$RMU.names,
+  model.trend = "Year-specific",
+  model.rookeries = "Constant",
+  model.SD = "Global-constant",
+  parameters = parg,
+  fixed.parameters = NULL,
+  SE = NULL,
+  method = c("Nelder-Mead", "BFGS"),
+  control = list(trace = 1),
+  itnmax = c(1500, 1500),
+  cptmax.optim = 100,
+  limit.cpt.optim = 1e-05,
+  hessian = TRUE,
+  replicate.CI = 1000,
+  colname.year = fr$colname.year,
+  maxL = 1e+09
+)
+
+save(fRMU_cst, file = file.path("dataOut", "fRMU_cst.Rdata"))
+```
+
+## Modèle avec un changement possible d'utilisation des plages
+
+```{r eval=FALSE}
+parg <- c('T_2017' = 492.11587373448879, 
+  'T_2018' = 565.77939276911309, 
+  'T_2019' = 424.08784234736402, 
+  'T_2020' = 351.88089962576572, 
+  'T_2021' = 477.4093631868036, 
+  'T_2022' = 338.5661347801618, 
+  'a0_gi.mean' = 0.84931006000191889, 
+  'a0_ieroue.mean' = 0.24681156883940822, 
+  'a0_kouare.mean' = 0.38276980668649813, 
+  'a0_nda.mean' = 0.39130192626972887, 
+  'a0_nge.mean' = 0.73843213022690413, 
+  'a0_redika.mean' = 0.33713225547938463, 
+  'a0_tere.mean' = 0.12538196820081576, 
+  'a0_ua.mean' = 0.2225322777305595, 
+  'a0_uaterembi.mean' = 0.47469785313867358, 
+  'a0_vua.mean' = 0.52864753847476831, 
+  'a0_uatio.mean' = 0.38194980815486612, 
+  'a0_amere.mean' = 0.84086857195340581, 
+  'a0_du.ami.mean' = 0.22255486067037744, 
+  'a0_kie.mean' = 1.5659024441657339, 
+  'a0_koko.mean' = 0.68724805695757329, 
+  'a0_mato.mean' = 0.25093344874713486, 
+  'a0_ndo.mean' = 0.30043230128161885, 
+  'a0_noe.mean' = 0.19240804428978917, 
+  'a0_petit.koko.mean' = 0.2363996472382914, 
+  'a0_totea.mean' = 0.42469442804707958, 
+  'a0_uie.mean' = 0.28773584598179713, 
+  'a0_uo.mean' = 0.22831554970138737, 
+  'a0_puemba.mean' = 0.37741583775153931, 
+  'a0_nouare.mean' = 0.2026604471611099, 
+  'a0_pumbo.mean' = 0.20917244155303699, 
+  'a0_ugo.mean' = 0.16900389492767423, 
+  'a0_mbore.mean' = 0.26387150558115419, 
+  'SD_' = 7.0362619843885108)
+
+fRMU_fo <- fitRMU(
+  RMU.data = fr$RMU.data,
+  years.byrow = fr$years.byrow,
+  RMU.names = fr$RMU.names,
+  model.trend = "Year-specific",
+  model.rookeries = "First-order",
+  model.SD = "Global-constant",
+  parameters = parg,
+  fixed.parameters = NULL,
+  SE = NULL,
+  method = c("Nelder-Mead", "BFGS"),
+  control = list(trace = 1),
+  itnmax = c(1500, 1500),
+  cptmax.optim = 100,
+  limit.cpt.optim = 1e-05,
+  hessian = TRUE,
+  replicate.CI = 1000,
+  colname.year = fr$colname.year,
+  maxL = 1e+09
+)
+
+save(fRMU_fo, file = file.path("dataOut", "fRMU_fo.Rdata"))
+```
+
+```{r}
+load(file = file.path("dataOut", "fRMU_fo.Rdata"))
+load(file = file.path("dataOut", "fRMU_cst.Rdata"))
+compare_AICc(Constant_proportions=FormatCompareAIC(logLik=-fRMU_cst$value, 
+                                                   nobs = length(na.omit(unlist(as.vector(fRMU_cst$RMU.data[, fRMU_cst$RMU.names$mean])))), 
+                                                   df=length(fRMU_cst$par)), 
+             FirstOrder_proportions=FormatCompareAIC(logLik=-fRMU_fo$value, 
+                                                     nobs = length(na.omit(unlist(as.vector(fRMU_fo$RMU.data[, fRMU_fo$RMU.names$mean])))), 
+                                                     df=length(fRMU_fo$par)))
+```
+
+On montre qu'un modèle avec des proportions constantes d'utilisation des différentes plages est suffisant.
+
+## Visualisation des résultats
+
+### Données en ML
+
+```{r}
+load(file = file.path("dataOut", "fRMU_cst.Rdata"))
+par(mar=c(4, 4, 2, 1))
+plot(fRMU_cst, what="total")
+par(mar=c(4, 4, 2, 4))
+plot(fRMU_cst, main="Use of different islets along the time", what = "numbers", 
+     aggregate="both", ylim=c(0, 600), replicate.CI=0, show.legend = TRUE, 
+     control.legend = list(cex=0.53, x=2022.1, y=600, legend=gsub(".mean", "", rev(fRMU_cst$RMU.names$mean)), bty="n"), 
+     ylab="Number of tracks")
+par(mar=c(4, 4, 2, 1))
+```
+
+### Données en MCMC
+
+```{r eval=FALSE}
+priors_fRMU <- fitRMU_MHmcmc_p(
+  result = fRMU_cst,
+  density = "dunif",
+  accept = TRUE
+)
+
+fRMU_cst_MCMC <- fitRMU_MHmcmc(
+  result = fRMU_cst,
+  n.iter = 50000,
+  parametersMCMC = priors_fRMU,
+  n.chains = 1,
+  n.adapt = 0,
+  thin = 1,
+  adaptive = TRUE,
+  trace = 5000,
+  traceML = FALSE
+)
+
+save(fRMU_cst_MCMC, file = file.path("dataOut", "fRMU_cst_MCMC.Rdata"))
+```
+
+```{r}
+load(file = file.path("dataOut", "fRMU_cst.Rdata"))
+load(file = file.path("dataOut", "fRMU_cst_MCMC.Rdata"))
+par(mar=c(4, 4, 2, 1))
+plot(fRMU_cst, what="total", resultMCMC = fRMU_cst_MCMC)
+par(mar=c(4, 4, 2, 4))
+plot(fRMU_cst, resultMCMC = fRMU_cst_MCMC, 
+     main="Use of different islets along the time", what = "numbers", 
+     aggregate="both", ylim=c(0, 600), replicate.CI=0, show.legend = TRUE, 
+     control.legend = list(cex=0.53, x=2022.1, y=600, legend=gsub(".mean", "", rev(fRMU_cst$RMU.names$mean)), bty="n"), 
+     ylab="Number of tracks")
+par(mar=c(4, 4, 2, 1))
+```
+
+## Synthèse des résultats pour tous les îlôts et toutes les années
+
+```{r}
+out_fRMU_MCMC <- CI.RMU(
+  result = fRMU_cst,
+  resultMCMC = fRMU_cst_MCMC,
+  chain = 1,
+  replicate.CI = 10000,
+  regularThin = TRUE,
+  probs = c(0.025, 0.5, 0.975),
+  silent = FALSE)
+dimnames(out_fRMU_MCMC$Numbers_both)[[3]] <- gsub(".mean", "", dimnames(out_fRMU_MCMC$Numbers_both)[[3]])
+out_fRMU_MCMC$Numbers_both
+```
+
