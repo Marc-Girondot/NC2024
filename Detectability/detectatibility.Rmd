@@ -1,1 +1,335 @@
+---
+title: "Tracks detectatbility"
+date: "`r format(Sys.time(), '%d %B %Y')`"
+output:
+  word_document: 
+    fig_width: 8
+    fig_height: 6
+    reference_docx: template.docx
+  html_document:
+    df_print: paged
+  pdf_document: default
+editor_options:
+  chunk_output_type: console
+---
 
+#Load Packages
+
+```{r}
+library(openxlsx)
+library(MASS)
+library(HelpersMG)
+
+```
+
+
+
+# Read original data
+
+```{r}
+dtaT <- read.xlsx(xlsxFile = file.path("dataIn", "DB_nest detectability.xlsx"), sheet="Suivi traces (ALL)", detectDates = TRUE)
+
+colnames(dtaT)
+any(is.na(dtaT$VALIDATION))
+
+dtaT <- dtaT[dtaT$VALIDATION == 1, ]
+any(is.na(dtaT$DETECTABILITY))
+
+ID <- unique(dtaT$ID.NEST)
+
+dta_F <- data.frame(NESTING.SEASON=as.character(NULL), ID=as.character(NULL), Date=as.Date(NULL), Detectable=as.numeric(NULL))
+
+for (id in unique(dtaT$ID.NEST)) {
+  # id <- unique(dtaT$ID.NEST)[1]
+  dta_int <- subset(dtaT, subset = ID.NEST == id, select = c("NESTING.SEASON", "DATE.REF", "DATE.EVENT", "DETECTABILITY"))
+  
+  if (dta_int[1, "DATE.REF"] != dta_int[1, "DATE.EVENT"])
+    dta_int <- rbind(data.frame(NESTING.SEASON=dta_int[1, "NESTING.SEASON"], 
+                                DATE.REF=dta_int[1, "DATE.REF"], 
+                                DATE.EVENT=dta_int[1, "DATE.REF"], 
+                                "DETECTABILITY"=1), dta_int)
+  dta_F_Int <- data.frame(NESTING.SEASON=dta_int[, "NESTING.SEASON"], 
+                          ID=rep(id, nrow(dta_int)), Date=dta_int[, "DATE.EVENT"], 
+                          Detectable=dta_int[, "DETECTABILITY"])
+  dta_F <- rbind(dta_F, dta_F_Int)
+}
+
+
+# I generate a column NoDetect
+
+dta_F <- cbind(dta_F, NoDetect=1-dta_F$Detectable)
+
+# I generate a vector with date of first observation for each track
+
+tracks <- unique(dta_F$ID)
+premiereObs <- as.Date(sapply(as.list(tracks), FUN=function(x) min(subset(dta_F, subset = (ID==x), select="Date")[, "Date"])))
+names(premiereObs) <- tracks
+
+premiereObs_detec <- sapply(as.list(tracks), FUN=function(x) subset(dta_F, subset = (ID==x), select="Detectable")[1, "Detectable"])
+names(premiereObs_detec) <- tracks
+
+# I generate a new column with the age of the track
+dta_F <- cbind(dta_F, Age=NA)
+
+for (i in 1:nrow(dta_F)) {
+  dta_F[i, "Age"] <- dta_F[i, "Date"] - premiereObs[dta_F[i, "ID"]]
+}
+
+dta_F$NESTING.SEASON <- as.factor(dta_F$NESTING.SEASON)
+
+Calendrier_1 <- sort(unique((subset(dta_F, subset=NESTING.SEASON == "2019-20", select = "Date")[, 1])))
+Calendrier_2 <- sort(unique((subset(dta_F, subset=NESTING.SEASON == "2021-22", select = "Date")[, 1])))
+Calendrier_3 <- sort(unique((subset(dta_F, subset=NESTING.SEASON == "2022-23", select = "Date")[, 1])))
+
+dta_add <- dta_F[1, ]
+dta_add <- dta_add[-1, ]
+for (id in unique((subset(dta_F, subset=NESTING.SEASON == "2019-20", select = "ID")[, 1]))) {
+  dta_int <- subset(dta_F, subset = ID==id, select = "Date")[, 1]
+  if (max(dta_int) != max(Calendrier_1)) {
+    print(id)
+    pos <- which(max(dta_int) == Calendrier_1)
+    newd <- Calendrier_1[(pos+1):length(Calendrier_1)]
+    dta_add <- rbind(dta_add, data.frame(NESTING.SEASON=rep("2019-20", length(newd)), 
+               ID=rep(id, length(newd)), Date=newd, Detectable=rep(0, length(newd)), 
+               NoDetect=rep(1, length(newd)), Age=as.numeric(newd-dta_int[1])))
+  }
+}
+
+for (id in unique((subset(dta_F, subset=NESTING.SEASON == "2021-22", select = "ID")[, 1]))) {
+  dta_int <- subset(dta_F, subset = ID==id, select = "Date")[, 1]
+  if (max(dta_int) != max(Calendrier_2)) {
+    print(id)
+    pos <- which(max(dta_int) == Calendrier_2)
+    newd <- Calendrier_2[(pos+1):length(Calendrier_2)]
+    dta_add <- rbind(dta_add, data.frame(NESTING.SEASON=rep("2021-22", length(newd)), 
+               ID=rep(id, length(newd)), Date=newd, Detectable=rep(0, length(newd)), 
+               NoDetect=rep(1, length(newd)), Age=newd-dta_int[1]))
+  }
+}
+
+for (id in unique((subset(dta_F, subset=NESTING.SEASON == "2022-23", select = "ID")[, 1]))) {
+  dta_int <- subset(dta_F, subset = ID==id, select = "Date")[, 1]
+  if (max(dta_int) != max(Calendrier_3)) {
+    print(id)
+    pos <- which(max(dta_int) == Calendrier_3)
+    newd <- Calendrier_3[(pos+1):length(Calendrier_3)]
+    dta_add <- rbind(dta_add, data.frame(NESTING.SEASON=rep("2022-23", length(newd)), 
+               ID=rep(id, length(newd)), Date=newd, Detectable=rep(0, length(newd)), 
+               NoDetect=rep(1, length(newd)), Age=newd-dta_int[1]))
+  }
+}
+
+dta_F <- rbind(dta_F, dta_add)
+dta_F$NESTING.SEASON <- as.factor(dta_F$NESTING.SEASON)
+
+dta_F <- dta_F[order(dta_F$NESTING.SEASON, dta_F$ID, dta_F$Date), ]
+
+dta <- dta_F
+```
+
+#Plot of raw data using dates
+
+```{r}
+plot(x=dta$Date, y=dta$Detectable, xlab="Dates", ylab="Detection", type="n", las=1, bty="n")
+
+for (id in tracks) {
+  # id <- tracks[1]
+  dta_int <- subset(dta, subset = (ID==id))
+  lines(x=dta_int$Date, y=dta_int$Detectable, col=rainbow(length(tracks))[which(id==tracks)], type="b")
+  
+  if ((dta_int[nrow(dta_int), "Detectable"] == 1) & (any(dta_int[, "Detectable"] == 0))) print(id)
+}
+```
+
+#Plot of raw data using ages
+
+```{r}
+plot(x=dta$Age, y=dta$Detectable, xlab="Ages", ylab="Detection", type="n", las=1, bty="n")
+
+for (id in tracks) {
+  dta_int <- subset(dta, subset = (ID==id))
+  lines(x=dta_int$Age, y=dta_int$Detectable, col=rainbow(length(tracks))[which(id==tracks)], type="b")
+  if (dta_int[1, "Detectable"] == 0) print(id)
+}
+```
+
+#Analysis using a GLMM with track as random factor and Age as fixed factor
+
+A autoregressive AR1 is used to take into account that probability of detection at any time depends on the probability of detection at previous time.
+
+
+```{r}
+library(MASS)
+
+nboot <- 1000
+aget <- seq(from=0, to=100, by=1)
+out_boot_total <- matrix(NA, ncol=length(aget), nrow=nboot)
+
+library(nlme)
+cs1AR1 <- corAR1(0.99, form = ~ 1 | ID)
+cs1AR1. <- Initialize(cs1AR1, data = dta)
+
+essaix <- glmmPQL(cbind(Detect=Detectable, No=NoDetect) ~ Age,
+                  random= ~ 1 | ID, correlation= cs1AR1., 
+                  data = dta, family=binomial(link = "logit"))
+cAIC(essaix)
+
+essaix <- glmmPQL(cbind(Detect=Detectable, No=NoDetect) ~ Age + NESTING.SEASON,
+                  random= ~ 1 | ID, correlation= cs1AR1., 
+                  data = dta, family=binomial(link = "logit"))
+sx <- summary(essaix)
+
+
+library(poolr)
+fisher(p=coef(sx)[c("NESTING.SEASON2021-22", "NESTING.SEASON2022-23"), "p-value"])
+
+season <- unique(dta[, "NESTING.SEASON"])
+tracks <- unique(dta$ID)
+
+tracks_1 <- unique(subset(dta, subset = NESTING.SEASON==season[1], select="ID")[, 1])
+tracks_2 <- unique(subset(dta, subset = NESTING.SEASON==season[2], select="ID")[, 1])
+tracks_3 <- unique(subset(dta, subset = NESTING.SEASON==season[3], select="ID")[, 1])
+
+pred_df <- expand.grid(Age=aget, ID=tracks_1[1], NESTING.SEASON=season[1])
+out_boot_1 <- predict(essaix, type = "response", newdata = pred_df)
+out_boot_1 <- matrix(out_boot_1, nrow=length(tracks_1[1]), byrow = TRUE)
+pred_df <- expand.grid(Age=aget, ID=tracks_2[1], NESTING.SEASON=season[2])
+out_boot_2 <- predict(essaix, type = "response", newdata = pred_df)
+out_boot_2 <- matrix(out_boot_2, nrow=length(tracks_2[1]), byrow = TRUE)
+pred_df <- expand.grid(Age=aget, ID=tracks_3[1], NESTING.SEASON=season[3])
+out_boot_3 <- predict(essaix, type = "response", newdata = pred_df)
+out_boot_3 <- matrix(out_boot_3, nrow=length(tracks_3[1]), byrow = TRUE)
+
+out_boot_total <- rbind(out_boot_1, out_boot_2, out_boot_3)
+out_boot <- apply(out_boot_1, MARGIN=2, FUN=function(x) quantile(x, probs=c(0.025, 0.25, 0.5, 0.75, 0.975)))
+
+out_boot_model <- out_boot
+
+plot_errbar(x=aget, y=out_boot["50%", ], y.minus = out_boot["2.5%", ], y.plus = out_boot["97.5%", ], 
+            type="l", col="black", 
+            xlab="Age of the track", ylab="Probability of detection", bty="n", las=1, 
+            errbar.y.polygon = TRUE, xlim=c(0, max(aget)), ylim=c(0, 1), pch=NA, 
+            errbar.y.polygon.list=list(border=NA, col=rgb(0, 0, 0, 0.4)))
+
+legend("topright", legend = c("Median probability of detection", "50% confidence interval"), lty=c(1, NA), pch=c(NA, 15), col=c("black", "grey"))
+
+
+
+library("progress")
+pb <- progress_bar$new(
+  format = "  completion [:bar] :percent eta: :eta",
+  total = nboot-1, clear = FALSE)
+options(warn=2)
+
+for (i in 2:nboot) {
+  pb$tick()
+  repeat {
+    repeat {
+      dta_boot <- dta[sample(x=1:nrow(dta), size = nrow(dta), replace = TRUE), ]
+      
+      cs1AR1 <- corAR1(0.99, form = ~ 1 | ID)
+      cs1AR1. <- Initialize(cs1AR1, data = dta_boot)
+      
+      essaix <- try(glmmPQL(cbind(Detect=Detectable, No=NoDetect) ~ Age + NESTING.SEASON,
+                            random= ~ 1 | ID, correlation= cs1AR1., 
+                            data = dta_boot, family=binomial(link = "logit"), verbose=FALSE), silent = TRUE)
+      if (all(class(essaix) != "try-error")) break
+    }
+    
+    tracks_1 <- unique(subset(dta_boot, subset = NESTING.SEASON==season[1], select="ID")[, 1])
+tracks_2 <- unique(subset(dta_boot, subset = NESTING.SEASON==season[2], select="ID")[, 1])
+tracks_3 <- unique(subset(dta_boot, subset = NESTING.SEASON==season[3], select="ID")[, 1])
+
+pred_df <- expand.grid(Age=aget, ID=tracks_1[1], NESTING.SEASON=season[1])
+out_boot_1 <- predict(essaix, type = "response", newdata = pred_df)
+out_boot_1 <- matrix(out_boot_1, nrow=length(tracks_1[1]), byrow = TRUE)
+pred_df <- expand.grid(Age=aget, ID=tracks_2, NESTING.SEASON=season[2])
+out_boot_2 <- predict(essaix, type = "response", newdata = pred_df)
+out_boot_2 <- matrix(out_boot_2, nrow=length(tracks_2), byrow = TRUE)
+pred_df <- expand.grid(Age=aget, ID=tracks_3[1], NESTING.SEASON=season[3])
+out_boot_3 <- predict(essaix, type = "response", newdata = pred_df)
+out_boot_3 <- matrix(out_boot_3, nrow=length(tracks_3[1]), byrow = TRUE)
+
+out_boot <- rbind(out_boot_1, out_boot_2, out_boot_3)
+    
+    if ((all(class(pred_a_1) != "try-error")) & (all(class(pred_a_2) != "try-error")) & (all(class(pred_a_3) != "try-error"))) break
+  }
+  
+  out_boot_total <- rbind(out_boot_total, out_boot)
+  
+}
+
+dpred <- apply(X=out_boot_total, MARGIN = 2, FUN = function(x) quantile(x, probs=c(0.025, 0.10, 0.25, 0.5, 0.75, 0.90, 0.975)))
+
+plot(aget, dpred["2.5%", ])
+
+library(HelpersMG)
+
+out_boot_1 <- apply(out_boot_1, MARGIN=2, FUN=function(x) quantile(x, probs=c(0.025, 0.25, 0.5, 0.75, 0.975)))
+out_boot_2 <- apply(out_boot_2, MARGIN=2, FUN=function(x) quantile(x, probs=c(0.025, 0.25, 0.5, 0.75, 0.975)))
+out_boot_3 <- apply(out_boot_3, MARGIN=2, FUN=function(x) quantile(x, probs=c(0.025, 0.25, 0.5, 0.75, 0.975)))
+
+# pdf(file = "Result0.pdf", width = 8, height = 8, pointsize = 14)
+# png(filename = "Result0.png", width = 1024, height = 1024, pointsize = 14)
+# tiff(filename = "Result0.tif", width = 1024, height = 880, pointsize = 10, res = 300)
+
+
+layout(matrix(c(1,2,2), 3, 1, byrow = T))
+par(mar=c(2, 4, 1, 1))
+
+plot(x=dta$Age, y=dta$Detectable, xlab="", ylab="Detection", 
+     type="n", las=1, bty="n", xlim=c(0, 100), yaxt="n")
+axis(side = 2, at=c(0, 1), labels = c("No", "Yes"), las=1)
+
+
+for (id in tracks) {
+  dta_int <- subset(dta, subset = (ID==id))
+  lines(x=dta_int$Age, y=dta_int$Detectable, col=switch(as.numeric(dta_int[1, "NESTING.SEASON"]), "red", "green", "blue"), type="b", lwd=0.5)
+  if (dta_int[1, "Detectable"] == 0) print(id)
+  if (nrow(dta_int) > 1)
+    for (j in 2:nrow(dta_int)) {
+      if ((dta_int[j-1, "Detectable"] == 0) & (dta_int[j, "Detectable"] == 1)) print(id)
+    }
+}
+legend("topright", legend = c("2019-2020", "2021-2022", "2022-2023"), lty=1, pch=NA, col=c(rgb(1, 0, 0, 1), rgb(0, 1, 0, 1), rgb(0, 0, 1, 1)), cex=0.8)
+
+text(x=ScalePreviousPlot(x=0.95, y=0.15)$x, y=ScalePreviousPlot(x=0.95, y=0.15)$y, labels = "A", cex=2)
+
+par(mar=c(4, 4, 0, 1))
+
+plot_errbar(x=aget, y=dpred["50%", ], y.minus = dpred["25%", ], y.plus = dpred["75%", ], 
+            type="l", col=rgb(0, 0, 0, 1), 
+            xlab="Age of the track", ylab="Probability of detection", bty="n", las=1, 
+            errbar.y.polygon = TRUE, xlim=c(0, max(aget)), ylim=c(0, 1), pch=NA, 
+            errbar.y.polygon.list=list(border=NA, col=rgb(0, 0, 0, 0.2)), add=FALSE)
+
+legend("topright", legend = c("Median probability of detection", "50% confidence interval"), lty=c(1, NA), pch=c(NA, 15), col=c("black", "grey"))
+text(x=ScalePreviousPlot(x=0.95, y=0.15)$x, y=ScalePreviousPlot(x=0.95, y=0.15)$y, labels = "B", cex=2)
+
+
+
+
+plot_errbar(x=aget, y=out_boot_1["50%", ], y.minus = out_boot_1["2.5%", ], y.plus = out_boot_1["97.5%", ], 
+            type="l", col=rgb(1, 0, 0, 0.6), 
+            xlab="Age of the track", ylab="Probability of detection", bty="n", las=1, 
+            errbar.y.polygon = TRUE, xlim=c(0, max(aget)), ylim=c(0, 1), pch=NA, 
+            errbar.y.polygon.list=list(border=NA, col=rgb(1, 0, 0, 0.2)), add=FALSE)
+
+plot_errbar(x=aget, y=out_boot_2["50%", ], y.minus = out_boot_2["2.5%", ], y.plus = out_boot_2["97.5%", ], 
+            type="l", col=rgb(0, 1, 0, 0.6), 
+            xlab="", ylab="P", bty="n", las=1, axes=FALSE, 
+            errbar.y.polygon = TRUE, xlim=c(0, max(aget)), ylim=c(0, 1), pch=NA, 
+            errbar.y.polygon.list=list(border=NA, col=rgb(0, 1, 0, 0.2)), add=TRUE)
+
+plot_errbar(x=aget, y=out_boot_3["50%", ], y.minus = out_boot_3["2.5%", ], y.plus = out_boot_3["97.5%", ], 
+            type="l", col=rgb(0, 0, 1, 0.6), 
+            xlab="", ylab="P", bty="n", las=1, axes=FALSE, 
+            errbar.y.polygon = TRUE, xlim=c(0, max(aget)), ylim=c(0, 1), pch=NA, 
+            errbar.y.polygon.list=list(border=NA, col=rgb(0, 0, 1, 0.2)), add=TRUE)
+
+
+legend("topright", legend = c("Median probability of detection", "95% confidence interval"), lty=c(1, NA), pch=c(NA, 15), col=c("black", "grey"))
+legend("bottomleft", legend = c("2019-2020", "2021-2022", "2022-2023"), lty=1, pch=NA, col=c(rgb(1, 0, 0, 1), rgb(0, 1, 0, 1), rgb(0, 0, 1, 1)))
+
+
+```
